@@ -1,0 +1,17 @@
+Package: RNILE
+Type: Package
+Title: Natural Language Information Extraction for Medical Text
+Version: 1.0.0
+Author: Converted from Java NILE implementation
+Maintainer: Your Name <your.email@example.com>
+Description: R wrapper for the NILE (Natural Language Information Extraction) Java library
+    for processing medical text and extracting semantic objects, modifiers, and locations.
+    This package provides functionality to analyze medical reports and extract structured
+    information including observations, anatomical locations, and modifiers with
+    certainty analysis using the original Java implementation via rJava.
+Depends: R (>= 3.5.0), rJava
+Suggests: testthat (>= 3.0.0)
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.3.2
