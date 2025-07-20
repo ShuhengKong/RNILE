@@ -85,7 +85,7 @@ load_mdd_dictionary <- function(nlp, dict_file) {
 #' @description Processes text and returns results in a convenient R data frame format
 #' @param nlp Java NLP object
 #' @param text character(1) the text to process
-#' @return data.frame with columns: sentence_id, entity_text, codes, semantic_role, certainty, family_history
+#' @return data.frame with columns: sentence_id, entity_text, codes, semantic_role, certainty, family_history, offset_start, offset_end
 #' @export
 #' @examples
 #' \dontrun{
@@ -113,6 +113,8 @@ process_text <- function(nlp, text) {
           semantic_role = get_semantic_role(obj),
           certainty = get_certainty(obj),
           family_history = is_family_history(obj),
+          offset_start = get_offset_start(obj),
+          offset_end = get_offset_end(obj),
           stringsAsFactors = FALSE
         )
         
@@ -131,6 +133,8 @@ process_text <- function(nlp, text) {
       semantic_role = character(0),
       certainty = character(0),
       family_history = logical(0),
+      offset_start = integer(0),
+      offset_end = integer(0),
       stringsAsFactors = FALSE
     ))
   }
@@ -255,4 +259,183 @@ run_nile_example <- function() {
     cat("Please check your NILE installation and Java setup.\n")
     return(NULL)
   })
+}
+
+#' Get detailed sentence analysis
+#' 
+#' @description Analyzes a sentence and returns detailed information including tokens
+#' @param nlp Java NLP object
+#' @param text character(1) the text to analyze
+#' @return list with sentence information
+#' @export
+analyze_sentence <- function(nlp, text) {
+  sentences <- dig_text_line(nlp, text)
+  
+  if (length(sentences) == 0) {
+    return(list())
+  }
+  
+  results <- list()
+  for (i in seq_along(sentences)) {
+    sentence <- sentences[[i]]
+    
+    sentence_info <- list(
+      sentence_id = i,
+      text = rJava::.jcall(sentence, "Ljava/lang/String;", "getText"),
+      tokens = get_tokens(sentence),
+      short_string = to_short_string(sentence),
+      semantic_objects = get_semantic_objects(sentence)
+    )
+    
+    results[[i]] <- sentence_info
+  }
+  
+  return(results)
+}
+
+#' Extract hierarchical semantic information
+#' 
+#' @description Extracts semantic information preserving modifier relationships
+#' @param nlp Java NLP object
+#' @param text character(1) the text to process
+#' @return nested list structure with modifiers
+#' @export
+extract_hierarchical_semantics <- function(nlp, text) {
+  sentences <- dig_text_line(nlp, text)
+  
+  results <- list()
+  
+  for (i in seq_along(sentences)) {
+    sentence <- sentences[[i]]
+    semantic_objs <- get_semantic_objects(sentence)
+    
+    sentence_semantics <- list()
+    
+    for (j in seq_along(semantic_objs)) {
+      obj <- semantic_objs[[j]]
+      
+      obj_info <- list(
+        text = get_text(obj),
+        codes = get_codes(obj),
+        semantic_role = get_semantic_role(obj),
+        certainty = get_certainty(obj),
+        family_history = is_family_history(obj),
+        offset_start = get_offset_start(obj),
+        offset_end = get_offset_end(obj)
+      )
+      
+      # Get modifiers recursively
+      modifiers <- get_modifiers(obj)
+      if (length(modifiers) > 0) {
+        obj_info$modifiers <- list()
+        for (k in seq_along(modifiers)) {
+          mod <- modifiers[[k]]
+          mod_info <- list(
+            text = get_text(mod),
+            codes = get_codes(mod),
+            semantic_role = get_semantic_role(mod),
+            certainty = get_certainty(mod),
+            family_history = is_family_history(mod),
+            offset_start = get_offset_start(mod),
+            offset_end = get_offset_end(mod)
+          )
+          obj_info$modifiers[[k]] <- mod_info
+        }
+      }
+      
+      sentence_semantics[[j]] <- obj_info
+    }
+    
+    results[[i]] <- list(
+      sentence_id = i,
+      sentence_text = rJava::.jcall(sentence, "Ljava/lang/String;", "getText"),
+      semantics = sentence_semantics
+    )
+  }
+  
+  return(results)
+}
+
+#' Get all available semantic roles
+#' 
+#' @description Returns all possible semantic roles from the NILE system
+#' @return character vector of semantic role names
+#' @export
+get_available_semantic_roles <- function() {
+  tryCatch({
+    # Get all semantic role enum values
+    role_values <- rJava::.jcall("edu.harvard.hsph.biostats.nile.SemanticRole",
+                                 "[Ledu/harvard/hsph/biostats/nile/SemanticRole;",
+                                 "values")
+    
+    # Convert to character vector
+    roles <- character(length(role_values))
+    for (i in seq_along(role_values)) {
+      roles[i] <- rJava::.jcall(role_values[[i]], "Ljava/lang/String;", "toString")
+    }
+    
+    return(roles)
+  }, error = function(e) {
+    warning("Could not retrieve semantic roles: ", e$message)
+    return(c("OBSERVATION", "LOCATION", "MODIFIER"))  # Fallback to main roles
+  })
+}
+
+#' Get all available certainty levels
+#' 
+#' @description Returns all possible certainty levels from the NILE system
+#' @return character vector of certainty level names
+#' @export
+get_available_certainty_levels <- function() {
+  tryCatch({
+    # Get all certainty enum values (class 'a' is the obfuscated Certainty enum)
+    certainty_values <- rJava::.jcall("edu.harvard.hsph.biostats.nile.a",
+                                      "[Ledu/harvard/hsph/biostats/nile/a;",
+                                      "values")
+    
+    # Convert to character vector
+    certainties <- character(length(certainty_values))
+    for (i in seq_along(certainty_values)) {
+      certainties[i] <- rJava::.jcall(certainty_values[[i]], "Ljava/lang/String;", "toString")
+    }
+    
+    return(certainties)
+  }, error = function(e) {
+    warning("Could not retrieve certainty levels: ", e$message)
+    return(c("YES", "NO", "UNCLEAR"))  # Fallback to known values
+  })
+}
+
+#' Batch process multiple texts
+#' 
+#' @description Process multiple texts efficiently and return combined results
+#' @param nlp Java NLP object
+#' @param texts character vector of texts to process
+#' @return data.frame with additional text_id column
+#' @export
+batch_process_texts <- function(nlp, texts) {
+  all_results <- list()
+  
+  for (i in seq_along(texts)) {
+    text <- texts[i]
+    tryCatch({
+      result <- process_text(nlp, text)
+      if (nrow(result) > 0) {
+        result$text_id <- i
+        result$original_text <- text
+        all_results[[length(all_results) + 1]] <- result
+      }
+    }, error = function(e) {
+      warning("Error processing text ", i, ": ", e$message)
+    })
+  }
+  
+  if (length(all_results) > 0) {
+    final_result <- do.call(rbind, all_results)
+    # Reorder columns to put text_id first
+    col_order <- c("text_id", "original_text", setdiff(names(final_result), c("text_id", "original_text")))
+    return(final_result[, col_order])
+  } else {
+    return(data.frame())
+  }
 } 

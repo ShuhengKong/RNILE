@@ -230,29 +230,30 @@ get_semantic_role <- function(semantic_obj) {
 #' 
 #' @description Gets the certainty level from a Java SemanticObject
 #' @param semantic_obj Java SemanticObject
-#' @return character(1) the certainty level
+#' @return character(1) the certainty level ("YES", "NO", "UNCLEAR")
 #' @export
 get_certainty <- function(semantic_obj) {
   if (!inherits(semantic_obj, "jobjRef"))
     stop("`semantic_obj` must be a Java SemanticObject")
   
   tryCatch({
-    # Try different possible method signatures
+    # Get the certainty enum (class 'a' is the obfuscated Certainty enum)
     certainty_enum <- rJava::.jcall(semantic_obj,
-                                    returnSig = "Ledu/harvard/hsph/biostats/nile/Certainty;",
+                                    returnSig = "Ledu/harvard/hsph/biostats/nile/a;",
                                     method = "getCertainty")
     rJava::.jcall(certainty_enum,
                   returnSig = "Ljava/lang/String;",
                   method = "toString")
   }, error = function(e1) {
+    # If there's an error, try alternative approaches or return default
     tryCatch({
-      # Try alternative method signature
+      # Try calling directly as string
       rJava::.jcall(semantic_obj,
                     returnSig = "Ljava/lang/String;",
                     method = "getCertainty")
     }, error = function(e2) {
-      # If both fail, return a default value (method may not be available in this NILE version)
-      return("CERTAIN")  # Default to CERTAIN instead of UNKNOWN
+      # If both fail, return a default value
+      return("YES")  # Default to YES (certain) instead of UNCLEAR
     })
   })
 }
@@ -328,4 +329,159 @@ sentence_to_string <- function(sentence) {
   rJava::.jcall(sentence,
                 returnSig = "Ljava/lang/String;",
                 method = "toString")
+}
+
+#' Get dictionary from NLP object
+#' 
+#' @description Gets the dictionary object from a NaturalLanguageProcessor
+#' @param nlp Java NLP object (from new_nlp())
+#' @return Java dictionary object
+#' @export
+get_dictionary <- function(nlp) {
+  if (!inherits(nlp, "jobjRef"))
+    stop("`nlp` must be a Java object created by new_nlp()")
+  
+  rJava::.jcall(nlp,
+                returnSig = "Ledu/harvard/hsph/biostats/nile/o;",
+                method = "getDictionary")
+}
+
+#' Get tokens from a sentence
+#' 
+#' @description Gets the tokens array from a Java Sentence object
+#' @param sentence Java Sentence object
+#' @return character vector of tokens
+#' @export
+get_tokens <- function(sentence) {
+  if (!inherits(sentence, "jobjRef"))
+    stop("`sentence` must be a Java Sentence object")
+  
+  tokens_array <- rJava::.jcall(sentence,
+                                returnSig = "[Ljava/lang/String;",
+                                method = "getTokens")
+  
+  # Convert Java string array to R character vector
+  if (!is.null(tokens_array)) {
+    return(rJava::.jevalArray(tokens_array))
+  } else {
+    return(character(0))
+  }
+}
+
+#' Get offset start position from semantic object
+#' 
+#' @description Gets the starting character offset of a semantic object in the text
+#' @param semantic_obj Java SemanticObject
+#' @return integer start position
+#' @export
+get_offset_start <- function(semantic_obj) {
+  if (!inherits(semantic_obj, "jobjRef"))
+    stop("`semantic_obj` must be a Java SemanticObject")
+  
+  rJava::.jcall(semantic_obj,
+                returnSig = "I",
+                method = "getOffsetStart")
+}
+
+#' Get offset end position from semantic object
+#' 
+#' @description Gets the ending character offset of a semantic object in the text
+#' @param semantic_obj Java SemanticObject
+#' @return integer end position
+#' @export
+get_offset_end <- function(semantic_obj) {
+  if (!inherits(semantic_obj, "jobjRef"))
+    stop("`semantic_obj` must be a Java SemanticObject")
+  
+  rJava::.jcall(semantic_obj,
+                returnSig = "I",
+                method = "getOffsetEnd")
+}
+
+#' Set offset positions for semantic object
+#' 
+#' @description Sets the start and end character offsets for a semantic object
+#' @param semantic_obj Java SemanticObject
+#' @param start_pos integer start position
+#' @param end_pos integer end position
+#' @return the modified semantic object
+#' @export
+set_offsets <- function(semantic_obj, start_pos, end_pos) {
+  if (!inherits(semantic_obj, "jobjRef"))
+    stop("`semantic_obj` must be a Java SemanticObject")
+  
+  rJava::.jcall(semantic_obj,
+                returnSig = "Ledu/harvard/hsph/biostats/nile/SemanticObject;",
+                method = "setOffsets",
+                as.integer(start_pos),
+                as.integer(end_pos))
+}
+
+#' Set certainty for semantic object
+#' 
+#' @description Sets the certainty level for a semantic object
+#' @param semantic_obj Java SemanticObject
+#' @param certainty character(1) one of "YES", "NO", "UNCLEAR"
+#' @export
+set_certainty <- function(semantic_obj, certainty) {
+  if (!inherits(semantic_obj, "jobjRef"))
+    stop("`semantic_obj` must be a Java SemanticObject")
+  
+  # Get the certainty enum value
+  certainty_enum <- rJava::.jfield("edu.harvard.hsph.biostats.nile.a", 
+                                   name = certainty)
+  
+  rJava::.jcall(semantic_obj,
+                returnSig = "V",
+                method = "setCertainty",
+                certainty_enum)
+}
+
+#' Set family history flag for semantic object
+#' 
+#' @description Sets whether a semantic object refers to family history
+#' @param semantic_obj Java SemanticObject
+#' @param is_family_hist logical family history flag
+#' @export
+set_family_history <- function(semantic_obj, is_family_hist) {
+  if (!inherits(semantic_obj, "jobjRef"))
+    stop("`semantic_obj` must be a Java SemanticObject")
+  
+  rJava::.jcall(semantic_obj,
+                returnSig = "V",
+                method = "setFamilyHistory",
+                as.logical(is_family_hist))
+}
+
+#' Get sentence from semantic object
+#' 
+#' @description Gets the parent sentence of a semantic object
+#' @param semantic_obj Java SemanticObject
+#' @return Java Sentence object
+#' @export
+get_sentence <- function(semantic_obj) {
+  if (!inherits(semantic_obj, "jobjRef"))
+    stop("`semantic_obj` must be a Java SemanticObject")
+  
+  rJava::.jcall(semantic_obj,
+                returnSig = "Ledu/harvard/hsph/biostats/nile/Sentence;",
+                method = "getSentence")
+}
+
+#' Set sentence for semantic object
+#' 
+#' @description Sets the parent sentence for a semantic object
+#' @param semantic_obj Java SemanticObject
+#' @param sentence Java Sentence object
+#' @export
+set_sentence <- function(semantic_obj, sentence) {
+  if (!inherits(semantic_obj, "jobjRef"))
+    stop("`semantic_obj` must be a Java SemanticObject")
+  if (!inherits(sentence, "jobjRef"))
+    stop("`sentence` must be a Java Sentence object")
+  
+  rJava::.jcall(semantic_obj,
+                returnSig = "V",
+                method = "setSentence",
+                sentence)
 } 

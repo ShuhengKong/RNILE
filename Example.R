@@ -280,6 +280,16 @@ test_semantic_analysis <- function() {
                 "(", get_semantic_role(mod), ")\n")
           }
         }
+        
+        # Test new offset functions
+        cat("    Offset Start:", get_offset_start(obj), "\n")
+        cat("    Offset End:", get_offset_end(obj), "\n")
+        
+        # Test sentence relationship
+        parent_sentence <- get_sentence(obj)
+        if (!is.null(parent_sentence)) {
+          cat("    Parent sentence text:", substr(rJava::.jcall(parent_sentence, "Ljava/lang/String;", "getText"), 1, 50), "...\n")
+        }
       }
     }
     
@@ -294,7 +304,202 @@ test_semantic_analysis <- function() {
 semantic_success <- test_semantic_analysis()
 
 # =============================================================================
-# Test 7: Edge Cases and Error Handling
+# Test 7: New Advanced Functions
+# =============================================================================
+cat("\n" %+% paste(rep("=", 60), collapse = "") %+% "\n")
+cat("TEST 7: New Advanced Functions\n")
+cat(paste(rep("=", 60), collapse = "") %+% "\n")
+
+test_advanced_functions <- function() {
+  test_text <- "Patient has severe bilateral pneumonia with pleural effusion."
+  cat("Testing advanced functions with:", test_text, "\n\n")
+  
+  tryCatch({
+    # Test detailed sentence analysis
+    cat("1. Testing analyze_sentence():\n")
+    sentence_analysis <- analyze_sentence(full_nlp, test_text)
+    cat("✓ Sentence analysis completed\n")
+    cat("  Found", length(sentence_analysis), "sentences\n")
+    
+    if (length(sentence_analysis) > 0) {
+      for (i in seq_along(sentence_analysis)) {
+        sent <- sentence_analysis[[i]]
+        cat("  Sentence", i, "tokens:", length(sent$tokens), "\n")
+        cat("    Tokens:", paste(sent$tokens[1:min(5, length(sent$tokens))], collapse = ", "), "\n")
+      }
+    }
+    
+    # Test hierarchical semantics extraction
+    cat("\n2. Testing extract_hierarchical_semantics():\n")
+    hierarchical <- extract_hierarchical_semantics(full_nlp, test_text)
+    cat("✓ Hierarchical semantics extracted\n")
+    cat("  Found", length(hierarchical), "sentences with semantic structures\n")
+    
+    # Test available roles and certainties
+    cat("\n3. Testing get_available_semantic_roles():\n")
+    roles <- get_available_semantic_roles()
+    cat("✓ Retrieved", length(roles), "semantic roles\n")
+    cat("  Roles:", paste(roles[1:min(5, length(roles))], collapse = ", "), "...\n")
+    
+    cat("\n4. Testing get_available_certainty_levels():\n")
+    certainties <- get_available_certainty_levels()
+    cat("✓ Retrieved", length(certainties), "certainty levels\n")
+    cat("  Certainties:", paste(certainties, collapse = ", "), "\n")
+    
+    # Test dictionary access
+    cat("\n5. Testing get_dictionary():\n")
+    dictionary <- get_dictionary(full_nlp)
+    cat("✓ Dictionary object retrieved\n")
+    
+    # Test tokens function
+    cat("\n6. Testing get_tokens():\n")
+    sentences <- dig_text_line(full_nlp, test_text)
+    if (length(sentences) > 0) {
+      tokens <- get_tokens(sentences[[1]])
+      cat("✓ Retrieved", length(tokens), "tokens\n")
+      cat("  Tokens:", paste(tokens, collapse = ", "), "\n")
+    }
+    
+    return(TRUE)
+    
+  }, error = function(e) {
+    cat("✗ Error in advanced functions test: ", e$message, "\n")
+    return(FALSE)
+  })
+}
+
+advanced_success <- test_advanced_functions()
+
+# =============================================================================
+# Test 8: Batch Processing
+# =============================================================================
+cat("\n" %+% paste(rep("=", 60), collapse = "") %+% "\n")
+cat("TEST 8: Batch Processing\n")
+cat(paste(rep("=", 60), collapse = "") %+% "\n")
+
+test_batch_processing <- function() {
+  # Multiple medical texts for batch processing
+  medical_texts <- c(
+    "Patient presents with chest pain and shortness of breath.",
+    "CT scan shows pulmonary embolism in the right lower lobe.",
+    "No acute findings on chest X-ray examination.",
+    "History of myocardial infarction and diabetes mellitus.",
+    "Bilateral pneumonia with pleural effusion noted."
+  )
+  
+  cat("Testing batch processing with", length(medical_texts), "texts...\n")
+  
+  tryCatch({
+    batch_result <- batch_process_texts(full_nlp, medical_texts)
+    cat("✓ Batch processing completed\n")
+    cat("  Total entities extracted:", nrow(batch_result), "\n")
+    
+    if (nrow(batch_result) > 0) {
+      # Show summary by text
+      text_summary <- table(batch_result$text_id)
+      cat("  Entities per text:\n")
+      for (i in names(text_summary)) {
+        cat("    Text", i, ":", text_summary[i], "entities\n")
+      }
+      
+      # Show sample results
+      cat("\n  Sample batch results:\n")
+      print(head(batch_result[, c("text_id", "entity_text", "semantic_role", "certainty")], 10))
+    }
+    
+    return(TRUE)
+    
+  }, error = function(e) {
+    cat("✗ Error in batch processing: ", e$message, "\n")
+    return(FALSE)
+  })
+}
+
+batch_success <- test_batch_processing()
+
+# =============================================================================
+# Test 9: Offset and Modification Functions
+# =============================================================================
+cat("\n" %+% paste(rep("=", 60), collapse = "") %+% "\n")
+cat("TEST 9: Offset and Modification Functions\n")
+cat(paste(rep("=", 60), collapse = "") %+% "\n")
+
+test_offset_functions <- function() {
+  test_text <- "Patient has acute pneumonia."
+  cat("Testing offset and modification functions with:", test_text, "\n")
+  
+  tryCatch({
+    sentences <- dig_text_line(full_nlp, test_text)
+    
+    if (length(sentences) > 0) {
+      semantic_objs <- get_semantic_objects(sentences[[1]])
+      
+      if (length(semantic_objs) > 0) {
+        obj <- semantic_objs[[1]]
+        
+        # Test offset functions
+        start_pos <- get_offset_start(obj)
+        end_pos <- get_offset_end(obj)
+        entity_text <- get_text(obj)
+        
+        cat("✓ Original offsets for '", entity_text, "':\n")
+        cat("  Start:", start_pos, "End:", end_pos, "\n")
+        
+        # Test setting new offsets
+        new_start <- start_pos + 1
+        new_end <- end_pos + 1
+        
+        set_offsets(obj, new_start, new_end)
+        cat("✓ Set new offsets:", new_start, "to", new_end, "\n")
+        
+        # Verify new offsets
+        updated_start <- get_offset_start(obj)
+        updated_end <- get_offset_end(obj)
+        cat("✓ Verified new offsets:", updated_start, "to", updated_end, "\n")
+        
+        # Test certainty modification
+        original_certainty <- get_certainty(obj)
+        cat("✓ Original certainty:", original_certainty, "\n")
+        
+        # Try setting different certainty (if supported)
+        tryCatch({
+          set_certainty(obj, "UNCLEAR")
+          new_certainty <- get_certainty(obj)
+          cat("✓ Updated certainty to:", new_certainty, "\n")
+          
+          # Restore original certainty
+          set_certainty(obj, original_certainty)
+          cat("✓ Restored original certainty\n")
+        }, error = function(e) {
+          cat("! Certainty modification not supported in this version\n")
+        })
+        
+        # Test family history modification
+        original_family_hist <- is_family_history(obj)
+        cat("✓ Original family history:", original_family_hist, "\n")
+        
+        set_family_history(obj, !original_family_hist)
+        new_family_hist <- is_family_history(obj)
+        cat("✓ Updated family history to:", new_family_hist, "\n")
+        
+        # Restore original value
+        set_family_history(obj, original_family_hist)
+        cat("✓ Restored original family history\n")
+      }
+    }
+    
+    return(TRUE)
+    
+  }, error = function(e) {
+    cat("✗ Error in offset functions test: ", e$message, "\n")
+    return(FALSE)
+  })
+}
+
+offset_success <- test_offset_functions()
+
+# =============================================================================
+# Test 10: Edge Cases and Error Handling
 # =============================================================================
 cat("\n" %+% paste(rep("=", 60), collapse = "") %+% "\n")
 cat("TEST 7: Edge Cases and Error Handling\n")
@@ -328,10 +533,10 @@ test_edge_cases <- function() {
 test_edge_cases()
 
 # =============================================================================
-# Test 8: Custom Dictionary Addition
+# Test 12: Custom Dictionary Addition
 # =============================================================================
 cat("\n" %+% paste(rep("=", 60), collapse = "") %+% "\n")
-cat("TEST 8: Custom Dictionary Addition\n")
+cat("TEST 12: Custom Dictionary Addition\n")
 cat(paste(rep("=", 60), collapse = "") %+% "\n")
 
 test_custom_phrases <- function() {
@@ -373,10 +578,10 @@ test_custom_phrases <- function() {
 custom_success <- test_custom_phrases()
 
 # =============================================================================
-# Test 9: Built-in Example Function
+# Test 13: Built-in Example Function
 # =============================================================================
 cat("\n" %+% paste(rep("=", 60), collapse = "") %+% "\n")
-cat("TEST 9: Built-in Example Function\n")
+cat("TEST 13: Built-in Example Function\n")
 cat(paste(rep("=", 60), collapse = "") %+% "\n")
 
 test_built_in_example <- function() {
@@ -395,10 +600,10 @@ test_built_in_example <- function() {
 example_result <- test_built_in_example()
 
 # =============================================================================
-# Test 10: Performance and Memory Test
+# Test 14: Performance and Memory Test
 # =============================================================================
 cat("\n" %+% paste(rep("=", 60), collapse = "") %+% "\n")
-cat("TEST 10: Performance and Memory Test\n")
+cat("TEST 14: Performance and Memory Test\n")
 cat(paste(rep("=", 60), collapse = "") %+% "\n")
 
 test_performance <- function() {
@@ -465,6 +670,9 @@ successful_tests <- c(
   !is.null(full_nlp),
   length(processing_results) > 0,
   semantic_success,
+  advanced_success,
+  batch_success,
+  offset_success,
   custom_success,
   !is.null(example_result),
   !is.null(performance_result)
@@ -502,6 +710,42 @@ if (!is.null(performance_result)) {
 # =============================================================================
 cat("Additional Functions Available:\n")
 cat("===============================\n")
+cat("Core Functions:\n")
+cat("- new_nlp(): Create a new NLP processor\n")
+cat("- init_nile(): Initialize with default dictionaries\n")
+cat("- add_vocabulary(nlp, file, role): Load dictionary from file\n")
+cat("- add_phrase(nlp, term, code, role): Add individual term\n")
+cat("- dig_text_line(nlp, text): Process text and return sentences\n")
+cat("- process_text(nlp, text): Process text and return data frame\n\n")
+
+cat("Entity Analysis Functions:\n")
+cat("- get_semantic_objects(sentence): Extract semantic objects\n")
+cat("- get_text(obj): Get text from semantic object\n") 
+cat("- get_codes(obj): Get medical codes\n")
+cat("- get_semantic_role(obj): Get semantic role\n")
+cat("- get_certainty(obj): Get certainty level\n")
+cat("- is_family_history(obj): Check if family history\n")
+cat("- get_modifiers(obj): Get modifiers\n\n")
+
+cat("Advanced Functions (NEW):\n")
+cat("- get_offset_start(obj): Get start position\n")
+cat("- get_offset_end(obj): Get end position\n")
+cat("- set_offsets(obj, start, end): Set position offsets\n")
+cat("- set_certainty(obj, certainty): Set certainty level\n")
+cat("- set_family_history(obj, flag): Set family history flag\n")
+cat("- get_sentence(obj): Get parent sentence\n")
+cat("- set_sentence(obj, sentence): Set parent sentence\n")
+cat("- get_tokens(sentence): Get sentence tokens\n")
+cat("- get_dictionary(nlp): Get dictionary object\n\n")
+
+cat("Utility Functions (NEW):\n")
+cat("- analyze_sentence(nlp, text): Detailed sentence analysis\n")
+cat("- extract_hierarchical_semantics(nlp, text): Hierarchical extraction\n")
+cat("- batch_process_texts(nlp, texts): Process multiple texts\n")
+cat("- get_available_semantic_roles(): List all semantic roles\n")
+cat("- get_available_certainty_levels(): List certainty levels\n\n")
+
+cat("Inspection Functions:\n")
 cat("- inspect_nile_classes(): Inspect available Java classes and methods\n")
 cat("- inspect_java_methods(): Detailed inspection of Java methods\n")
 cat("- run_nile_example(): Run the built-in example\n")
@@ -513,6 +757,26 @@ cat("library(RNILE)\n")
 cat("nlp <- init_nile()\n")
 cat("result <- process_text(nlp, 'Your medical text here')\n")
 cat("print(result)\n\n")
+
+cat("Advanced Usage:\n")
+cat("===============\n")
+cat("# Detailed analysis\n")
+cat("analysis <- analyze_sentence(nlp, 'Complex medical text')\n")
+cat("hierarchical <- extract_hierarchical_semantics(nlp, text)\n\n")
+cat("# Batch processing\n")
+cat("texts <- c('Text 1', 'Text 2', 'Text 3')\n")
+cat("batch_result <- batch_process_texts(nlp, texts)\n\n")
+cat("# Access entity details\n")
+cat("sentences <- dig_text_line(nlp, text)\n")
+cat("objects <- get_semantic_objects(sentences[[1]])\n")
+cat("obj <- objects[[1]]\n")
+cat("cat('Entity:', get_text(obj))\n")
+cat("cat('Position:', get_offset_start(obj), 'to', get_offset_end(obj))\n")
+cat("cat('Tokens:', paste(get_tokens(sentences[[1]]), collapse=', '))\n\n")
+
+cat("Python Interface:\n")
+cat("=================\n")
+cat("See Example.py for Python interface using rpy2\n\n")
 
 cat("✓ RNILE functionality test completed!\n")
 cat("The package is ready for use in medical text processing.\n")
